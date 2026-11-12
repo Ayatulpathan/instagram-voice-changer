@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bangla Voice Changer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #121212;
+      color: #f5f5f5;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #262626;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-icon {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+    .brand-subtitle {
+      font-size: 10px;
+      color: #a8a8a8;
+    }
+    /* Switch */
+    .switch-wrap {
+      display: flex;
+      align-items: center;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #333;
+      transition: .25s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .25s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background: linear-gradient(45deg, #e1306c, #fd1d1d);
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    /* Preset grid */
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #8e8e8e;
+      margin: 12px 0 6px 0;
+      font-weight: 600;
+    }
+    .presets {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .preset-btn {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 8px 6px;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 11px;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+    .preset-btn .bn {
+      display: block;
+      font-size: 10px;
+      color: #8e8e8e;
+      margin-top: 2px;
+    }
+    .preset-btn:hover {
+      background: #2a2a2a;
+      border-color: #555;
+    }
+    .preset-btn.active {
+      background: rgba(225, 48, 108, 0.15);
+      border-color: #e1306c;
+      color: #ff5b94;
+    }
+    .preset-btn.active .bn {
+      color: #ffa4c2;
+    }
+    /* Control Sliders */
+    .control-group {
+      background: #1a1a1a;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .control-row {
+      margin-bottom: 8px;
+    }
+    .control-row:last-child {
+      margin-bottom: 0;
+    }
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #ccc;
+      margin-bottom: 4px;
+    }
+    .control-val {
+      color: #e1306c;
+      font-weight: 600;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 5px;
+      background: #333;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #e1306c;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(225, 48, 108, 0.6);
+    }
+    /* Test Mic Button */
+    .test-box {
+      background: #181818;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      margin-top: 10px;
+    }
+    .test-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: #262626;
+      color: #fff;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .test-btn:hover {
+      background: #333;
+    }
+
+    /* Footer */
+    .status-bar {
+      margin-top: 10px;
+      font-size: 10px;
+      color: #737373;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">🎙️</div>
+      <div>
+        <div class="brand-title">Bangla Voice Changer</div>
+        <div class="brand-subtitle">Instagram & Facebook Call Mode</div>
+      </div>
+    </div>
+    <div class="switch-wrap">
+      <label class="switch">
+        <input type="checkbox" id="masterToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="section-title">Voice Presets (কণ্ঠের ধরন)</div>
+  <div class="presets">
+    <button class="preset-btn active" data-preset="natural_female">
+      Natural Female
+      <span class="bn">সুরেলা নারী কণ্ঠ</span>
+    </button>
+    <button class="preset-btn" data-preset="young_female">
+      Young Female
+      <span class="bn">তরুণী কণ্ঠ</span>
+    </button>
+    <button class="preset-btn" data-preset="soft_female">
+      Soft Female
+      <span class="bn">কোমল কণ্ঠ</span>
+    </button>
+    <button class="preset-btn" data-preset="custom">
+      Custom Tuning
+      <span class="bn">কাস্টম সেটিং</span>
+    </button>
+  </div>
+
+  <div class="section-title">Acoustic Tuning (অ্যাকোস্টিক টিউনিং)</div>
+  <div class="control-group">
+    <div class="control-row">
+      <div class="control-label">
+        <span>Pitch Shift (কণ্ঠের উচ্চতা)</span>
+        <span class="control-val" id="semitoneVal">+4.8 st</span>
+      </div>
+      <input type="range" id="semitoneSlider" min="1.0" max="9.0" step="0.2" value="4.8">
+    </div>
+
+    <div class="control-row">
+      <div class="control-label">
+        <span>Female Formant Boost (নারী রেজোন্যান্স)</span>
+        <span class="control-val" id="formantVal">3000 Hz</span>
+      </div>
+      <input type="range" id="formantSlider" min="2000" max="4000" step="100" value="3000">
+    </div>
+
+    <div class="control-row">
+      <div class="control-label">
+        <span>Male Bass Cut (বুকের ভারী আওয়াজ হ্রাস)</span>
+        <span class="control-val" id="lowCutVal">145 Hz</span>
+      </div>
+      <input type="range" id="lowCutSlider" min="90" max="220" step="5" value="145">
+    </div>
+  </div>
+
+  <div class="test-box">
+    <button class="test-btn" id="openTestPageBtn">
+      <span>🎧 Open Mic Test Page (টেস্ট পেজ খুলুন)</span>
+    </button>
+  </div>
+
+  <div class="status-bar">
+    <div><span class="status-dot"></span> Active on IG & FB / Messenger</div>
+    <div>v1.0.0</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

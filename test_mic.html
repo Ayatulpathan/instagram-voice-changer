@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Voice Changer Test Lab</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 500px;
+      width: 100%;
+    }
+    h1 { font-size: 20px; color: #f0f6fc; margin-bottom: 8px; }
+    p { font-size: 14px; color: #8b949e; margin-bottom: 20px; line-height: 1.5; }
+    button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.active { background: #da3633; }
+    canvas {
+      width: 100%;
+      height: 120px;
+      background: #0a0d12;
+      border-radius: 8px;
+      margin-top: 15px;
+      border: 1px solid #21262d;
+    }
+    .tip {
+      margin-top: 15px;
+      padding: 12px;
+      background: #1f242c;
+      border-left: 3px solid #e1306c;
+      font-size: 13px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Bangla Female Voice Test Lab</h1>
+    <p>Test your microphone and hear the real-time pitch + formant conversion through your headphones before making an Instagram or Facebook call.</p>
+    
+    <button id="toggleBtn">Start Live Mic Test</button>
+    <canvas id="scope"></canvas>
+
+    <div class="tip">
+      <strong>Pro-tip for Bangla Speech:</strong><br>
+      Wear headphones and speak at a normal conversational volume close to your microphone.
+    </div>
+  </div>
+
+  <script>
+    let audioCtx, stream, scriptNode, isRunning = false;
+    const btn = document.getElementById("toggleBtn");
+    const canvas = document.getElementById("scope");
+    const canvasCtx = canvas.getContext("2d");
+
+    class PitchShifter {
+      constructor(sampleRate, semitones = 4.8) {
+        this.sampleRate = sampleRate || 48000;
+        this.ratio = Math.pow(2, semitones / 12);
+        this.grainSize = Math.max(256, Math.floor(this.sampleRate * 0.025));
+        this.bufferSize = this.grainSize * 4;
+        this.buffer = new Float32Array(this.bufferSize);
+        this.writePtr = 0;
+        this.phase = 0.0;
+      }
+      process(input, output) {
+        const len = input.length;
+        const rampPeriod = this.grainSize / Math.abs(this.ratio - 1.0);
+        for (let i = 0; i < len; i++) {
+          this.buffer[this.writePtr] = input[i];
+          const p1 = (this.phase / rampPeriod) % 1.0;
+          const p2 = ((this.phase + rampPeriod * 0.5) / rampPeriod) % 1.0;
+          const delay1 = (1.0 - p1) * this.grainSize;
+          const delay2 = (1.0 - p2) * this.grainSize;
+          const w1 = 0.5 * (1.0 - Math.cos(2.0 * Math.PI * p1));
+          const w2 = 0.5 * (1.0 - Math.cos(2.0 * Math.PI * p2));
+          const r1 = (this.writePtr - delay1 + this.bufferSize) % this.bufferSize;
+          const s1 = this.buffer[Math.floor(r1)];
+          const r2 = (this.writePtr - delay2 + this.bufferSize) % this.bufferSize;
+          const s2 = this.buffer[Math.floor(r2)];
+          output[i] = s1 * w1 + s2 * w2;
+          this.writePtr = (this.writePtr + 1) % this.bufferSize;
+          this.phase += 1.0;
+        }
+      }
+    }
+
+    btn.onclick = async () => {
+      if (isRunning) {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (audioCtx) audioCtx.close();
+        btn.innerText = "Start Live Mic Test";
+        btn.classList.remove("active");
+        isRunning = false;
+        return;
+      }
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new AudioContext();
+        if (audioCtx.state === "suspended") {
+          await audioCtx.resume();
+        }
+        const source = audioCtx.createMediaStreamSource(stream);
+        const shifter = new PitchShifter(audioCtx.sampleRate, 4.8);
+
+        scriptNode = audioCtx.createScriptProcessor(1024, 1, 1);
+        scriptNode.onaudioprocess = (e) => {
+          shifter.process(e.inputBuffer.getChannelData(0), e.outputBuffer.getChannelData(0));
+        };
+
+        const highPass = audioCtx.createBiquadFilter();
+        highPass.type = "highpass";
+        highPass.frequency.value = 145;
+
+        const formant = audioCtx.createBiquadFilter();
+        formant.type = "peaking";
+        formant.frequency.value = 3000;
+        formant.gain.value = 4.5;
+
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+
+        source.connect(scriptNode);
+        scriptNode.connect(highPass);
+        highPass.connect(formant);
+        formant.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        btn.innerText = "Stop Mic Test";
+        btn.classList.add("active");
+        isRunning = true;
+
+        canvas.width = canvas.clientWidth || 450;
+        canvas.height = canvas.clientHeight || 120;
+
+        const buffer = new Uint8Array(analyser.frequencyBinCount);
+        function draw() {
+          if (!isRunning) return;
+          requestAnimationFrame(draw);
+          analyser.getByteTimeDomainData(buffer);
+          canvasCtx.fillStyle = "#0a0d12";
+          canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+          canvasCtx.lineWidth = 2;
+          canvasCtx.strokeStyle = "#e1306c";
+          canvasCtx.beginPath();
+          const sliceWidth = canvas.width / buffer.length;
+          let x = 0;
+          for (let i = 0; i < buffer.length; i++) {
+            const v = buffer[i] / 128.0;
+            const y = (v * canvas.height) / 2;
+            if (i === 0) canvasCtx.moveTo(x, y);
+            else canvasCtx.lineTo(x, y);
+            x += sliceWidth;
+          }
+          canvasCtx.stroke();
+        }
+        draw();
+      } catch (err) {
+        alert("Microphone access error: " + err.message);
+      }
+    };
+  </script>
+</body>
+</html>
