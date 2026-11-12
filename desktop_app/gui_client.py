@@ -1,10 +1,11 @@
 """
 Bangla Female Voice Real-Time AI Desktop Client
 Provides:
-1. 🚀 Cloud AI Mode: Streams mic audio to Google Colab GPU via low-latency WebSocket.
-2. ⚡ Local Instant Mode: Real-time dual-delay pitch shifter + female formant resonator running offline on PC.
-3. 🎧 Live Audio Monitor: Allows hearing yourself in headphones/speakers while routing to VB-Cable for Instagram/Facebook.
-4. 🌐 1-Click Openers: Open Colab notebook and Instagram web in browser.
+1. 🔴 1-Click Self Test: Record 3 seconds & immediately hear your female voice back!
+2. 🚀 Cloud AI Mode: Streams mic audio to Google Colab GPU via low-latency WebSocket.
+3. ⚡ Local Instant Mode: Real-time dual-delay pitch shifter + female formant resonator running offline on PC.
+4. 🎧 Live Audio Monitor: Allows hearing yourself in headphones/speakers while routing to VB-Cable for Instagram/Facebook.
+5. 🌐 1-Click Openers: Open Colab notebook and Instagram web in browser.
 """
 
 import sys
@@ -96,21 +97,22 @@ class LocalVoiceEngine:
 
         # 3. Add female formant resonance
         formant, self.zi_form = signal.lfilter(self.b_form, self.a_form, shifted, zi=self.zi_form)
-        out = shifted + formant * 0.35
+        out = shifted + formant * 0.40
 
         # 4. Soft glottal clamp
-        return np.tanh(out * 1.15) * 0.95
+        return np.tanh(out * 1.25) * 0.95
 
 
 class BanglaAIVoiceClient:
     def __init__(self, root):
         self.root = root
-        self.root.title("Bangla Female Voice Real-Time Converter (Colab AI & Local)")
-        self.root.geometry("560x780")
+        self.root.title("Bangla Female Voice Studio (1-Click Test & Calls)")
+        self.root.geometry("560x820")
         self.root.resizable(False, False)
         self.root.configure(bg="#12161c")
 
         self.is_running = False
+        self.is_testing = False
         self.worker_thread = None
         self.audio_in_queue = queue.Queue(maxsize=30)
         self.audio_out_queue = queue.Queue(maxsize=30)
@@ -133,7 +135,7 @@ class BanglaAIVoiceClient:
                                 font=("Segoe UI", 8), fg="#a0aec0", bg="#1a202c")
         lbl_subtitle.pack()
 
-        # Quick Actions Bar (Colab & Instagram 1-click links)
+        # Quick Actions Bar
         bar_frame = tk.Frame(self.root, bg="#161d27", pady=6, padx=15)
         bar_frame.pack(fill="x")
 
@@ -152,38 +154,6 @@ class BanglaAIVoiceClient:
         main_frame = tk.Frame(self.root, bg="#12161c", padx=16, pady=10)
         main_frame.pack(fill="both", expand=True)
 
-        # Engine Mode Selector
-        mode_frame = tk.LabelFrame(main_frame, text=" Conversion Engine Mode ", font=("Segoe UI", 9, "bold"),
-                                   fg="#cbd5e0", bg="#18202a", padx=10, pady=8)
-        mode_frame.pack(fill="x", pady=(0, 10))
-
-        self.mode_var = tk.StringVar(value="cloud")
-        rb_cloud = tk.Radiobutton(mode_frame, text="🚀 Google Colab GPU (Best Neural Quality)", 
-                                  variable=self.mode_var, value="cloud", command=self.on_mode_change,
-                                  font=("Segoe UI", 9, "bold"), fg="#48bb78", bg="#18202a", 
-                                  activebackground="#18202a", selectcolor="#12161c")
-        rb_cloud.pack(anchor="w")
-
-        rb_local = tk.Radiobutton(mode_frame, text="⚡ Local Offline Engine (Instant Zero-Setup Test on PC)", 
-                                  variable=self.mode_var, value="local", command=self.on_mode_change,
-                                  font=("Segoe UI", 9, "bold"), fg="#63b3ed", bg="#18202a", 
-                                  activebackground="#18202a", selectcolor="#12161c")
-        rb_local.pack(anchor="w")
-
-        # Colab Tunnel URL Frame
-        self.url_frame = tk.Frame(main_frame, bg="#12161c")
-        self.url_frame.pack(fill="x", pady=(0, 10))
-
-        lbl_url = tk.Label(self.url_frame, text="Google Colab WebSocket URL (from Colab Step 6):", 
-                           font=("Segoe UI", 8, "bold"), fg="#e2e8f0", bg="#12161c")
-        lbl_url.pack(anchor="w", pady=(0, 2))
-        
-        self.ent_url = tk.Entry(self.url_frame, font=("Segoe UI", 9), bg="#1e2530", fg="#48bb78", 
-                                insertbackground="#ffffff", relief="flat", highlightthickness=1, 
-                                highlightbackground="#2d3748", highlightcolor="#e1306c")
-        self.ent_url.pack(fill="x", ipady=4)
-        self.ent_url.insert(0, "wss://your-tunnel.trycloudflare.com/ws")
-
         # Voice Preset Selection
         preset_frame = tk.Frame(main_frame, bg="#12161c")
         preset_frame.pack(fill="x", pady=(0, 10))
@@ -197,79 +167,127 @@ class BanglaAIVoiceClient:
         self.cbo_preset.bind("<<ComboboxSelected>>", self.on_preset_change)
 
         # Audio Device Routing Frame
-        dev_frame = tk.LabelFrame(main_frame, text=" Audio Routing (Windows Sound Devices) ", 
+        dev_frame = tk.LabelFrame(main_frame, text=" Audio Devices (Your Mic & Speakers) ", 
                                   font=("Segoe UI", 9, "bold"), fg="#cbd5e0", bg="#18202a", padx=10, pady=8)
         dev_frame.pack(fill="x", pady=(0, 10))
 
         # Microphone Input
-        lbl_in = tk.Label(dev_frame, text="Microphone (Your Real Voice):", font=("Segoe UI", 8), 
+        lbl_in = tk.Label(dev_frame, text="Microphone (Your Speaking Voice):", font=("Segoe UI", 8, "bold"), 
                           fg="#e2e8f0", bg="#18202a")
         lbl_in.pack(anchor="w")
         self.cbo_input = ttk.Combobox(dev_frame, state="readonly", font=("Segoe UI", 8))
         self.cbo_input.pack(fill="x", pady=(1, 6))
 
+        # Headphone Live Monitor (Hear Myself)
+        lbl_mon = tk.Label(dev_frame, text="Your Speakers / Headphones (To Hear Yourself):", font=("Segoe UI", 8, "bold"), 
+                           fg="#63b3ed", bg="#18202a")
+        lbl_mon.pack(anchor="w")
+        self.cbo_monitor = ttk.Combobox(dev_frame, state="readonly", font=("Segoe UI", 8))
+        self.cbo_monitor.pack(fill="x", pady=(1, 6))
+
         # Virtual Cable Output (For Instagram Call)
-        lbl_out = tk.Label(dev_frame, text="Call Output -> Select 'CABLE Input' (Feeds into Instagram/Facebook Call):", 
+        lbl_out = tk.Label(dev_frame, text="Instagram Call Output (Send voice to Instagram):", 
                            font=("Segoe UI", 8, "bold"), fg="#ecc94b", bg="#18202a")
         lbl_out.pack(anchor="w")
         self.cbo_output = ttk.Combobox(dev_frame, state="readonly", font=("Segoe UI", 8))
-        self.cbo_output.pack(fill="x", pady=(1, 6))
+        self.cbo_output.pack(fill="x", pady=(1, 4))
 
-        # Headphone Live Monitor (Hear Myself)
-        mon_header = tk.Frame(dev_frame, bg="#18202a")
-        mon_header.pack(fill="x")
+        dev_btn_box = tk.Frame(dev_frame, bg="#18202a")
+        dev_btn_box.pack(fill="x", pady=(4, 0))
+
         self.monitor_var = tk.BooleanVar(value=True)
-        cb_monitor = tk.Checkbutton(mon_header, text="🎧 Hear Myself Live (Listen in Headphones/Speakers):", 
-                                    variable=self.monitor_var, font=("Segoe UI", 8, "bold"),
-                                    fg="#63b3ed", bg="#18202a", activebackground="#18202a", selectcolor="#12161c")
+        cb_monitor = tk.Checkbutton(dev_btn_box, text="🎧 Hear Myself Live During Calls", 
+                                    variable=self.monitor_var, font=("Segoe UI", 8),
+                                    fg="#a0aec0", bg="#18202a", activebackground="#18202a", selectcolor="#12161c")
         cb_monitor.pack(side="left")
 
-        self.cbo_monitor = ttk.Combobox(dev_frame, state="readonly", font=("Segoe UI", 8))
-        self.cbo_monitor.pack(fill="x", pady=(1, 4))
-
-        btn_refresh = tk.Button(dev_frame, text="🔄 Refresh Devices", font=("Segoe UI", 8), 
+        btn_refresh = tk.Button(dev_btn_box, text="🔄 Refresh Devices", font=("Segoe UI", 8), 
                                 command=self.refresh_devices, bg="#2d3748", fg="#e2e8f0", 
                                 relief="flat", cursor="hand2")
-        btn_refresh.pack(anchor="e", pady=(2, 0))
+        btn_refresh.pack(side="right")
+
+        # ------------------ BIG 1-CLICK SELF TEST BUTTON ------------------
+        test_frame = tk.LabelFrame(main_frame, text=" 🎯 Instant Self Test ", font=("Segoe UI", 9, "bold"),
+                                   fg="#f687b3", bg="#1a1829", padx=10, pady=8)
+        test_frame.pack(fill="x", pady=(0, 10))
+
+        self.btn_self_test = tk.Button(test_frame, text="🔴 1-Click Self Test (Record 3s & Hear Female Voice)", 
+                                       font=("Segoe UI", 10, "bold"), bg="#805ad5", fg="#ffffff", 
+                                       activebackground="#6b46c1", activeforeground="#ffffff", 
+                                       relief="flat", cursor="hand2", command=self.start_self_test)
+        self.btn_self_test.pack(fill="x", ipady=6, pady=(0, 4))
+
+        self.lbl_test_hint = tk.Label(test_frame, text="Click above, say: 'হ্যালো, কেমন আছেন?', and hear your female voice!", 
+                                      font=("Segoe UI", 8), fg="#d6bcfa", bg="#1a1829")
+        self.lbl_test_hint.pack()
+
+        # Engine Mode Selector
+        mode_frame = tk.LabelFrame(main_frame, text=" Live Stream Engine Mode ", font=("Segoe UI", 9, "bold"),
+                                   fg="#cbd5e0", bg="#18202a", padx=10, pady=6)
+        mode_frame.pack(fill="x", pady=(0, 8))
+
+        self.mode_var = tk.StringVar(value="local")
+        rb_local = tk.Radiobutton(mode_frame, text="⚡ Local Offline Engine (Fast, 0ms Latency on PC)", 
+                                  variable=self.mode_var, value="local", command=self.on_mode_change,
+                                  font=("Segoe UI", 9, "bold"), fg="#63b3ed", bg="#18202a", 
+                                  activebackground="#18202a", selectcolor="#12161c")
+        rb_local.pack(anchor="w")
+
+        rb_cloud = tk.Radiobutton(mode_frame, text="🚀 Google Colab GPU (Deep Neural AI)", 
+                                  variable=self.mode_var, value="cloud", command=self.on_mode_change,
+                                  font=("Segoe UI", 9, "bold"), fg="#48bb78", bg="#18202a", 
+                                  activebackground="#18202a", selectcolor="#12161c")
+        rb_cloud.pack(anchor="w")
+
+        # Colab Tunnel URL Frame (hidden by default in local mode)
+        self.url_frame = tk.Frame(main_frame, bg="#12161c")
+        lbl_url = tk.Label(self.url_frame, text="Google Colab WebSocket URL (from Colab Step 6):", 
+                           font=("Segoe UI", 8, "bold"), fg="#e2e8f0", bg="#12161c")
+        lbl_url.pack(anchor="w", pady=(0, 2))
+        self.ent_url = tk.Entry(self.url_frame, font=("Segoe UI", 9), bg="#1e2530", fg="#48bb78", 
+                                insertbackground="#ffffff", relief="flat", highlightthickness=1, 
+                                highlightbackground="#2d3748", highlightcolor="#e1306c")
+        self.ent_url.pack(fill="x", ipady=4)
+        self.ent_url.insert(0, "wss://your-tunnel.trycloudflare.com/ws")
 
         # Volume Gain Frame
         gain_frame = tk.Frame(main_frame, bg="#12161c")
-        gain_frame.pack(fill="x", pady=(0, 8))
+        gain_frame.pack(fill="x", pady=(0, 6))
 
         lbl_gain = tk.Label(gain_frame, text="Microphone Boost Gain:", font=("Segoe UI", 8), 
                             fg="#e2e8f0", bg="#12161c")
         lbl_gain.pack(side="left")
-        self.gain_val_lbl = tk.Label(gain_frame, text="1.2x", font=("Segoe UI", 8, "bold"), 
+        self.gain_val_lbl = tk.Label(gain_frame, text="1.4x", font=("Segoe UI", 8, "bold"), 
                                      fg="#e1306c", bg="#12161c")
         self.gain_val_lbl.pack(side="right")
-        self.scale_gain = tk.Scale(main_frame, from_=0.5, to=2.5, resolution=0.1, orient="horizontal", 
+        self.scale_gain = tk.Scale(main_frame, from_=0.5, to=3.0, resolution=0.1, orient="horizontal", 
                                    showvalue=False, bg="#12161c", fg="#e2e8f0", troughcolor="#1e2530", 
                                    highlightthickness=0, command=self.on_gain_change)
-        self.scale_gain.set(1.2)
-        self.scale_gain.pack(fill="x", pady=(0, 10))
+        self.scale_gain.set(1.4)
+        self.scale_gain.pack(fill="x", pady=(0, 8))
 
         # VU Meters Frame
-        meter_frame = tk.Frame(main_frame, bg="#18202a", padx=10, pady=8, relief="groove")
-        meter_frame.pack(fill="x", pady=(0, 12))
+        meter_frame = tk.Frame(main_frame, bg="#18202a", padx=10, pady=6, relief="groove")
+        meter_frame.pack(fill="x", pady=(0, 10))
 
         lbl_m1 = tk.Label(meter_frame, text="Your Microphone Input Level:", font=("Segoe UI", 8), 
                           fg="#a0aec0", bg="#18202a")
         lbl_m1.pack(anchor="w")
         self.meter_in = ttk.Progressbar(meter_frame, orient="horizontal", mode="determinate")
-        self.meter_in.pack(fill="x", pady=(2, 6))
+        self.meter_in.pack(fill="x", pady=(1, 4))
 
         lbl_m2 = tk.Label(meter_frame, text="AI Female Voice Output Level:", font=("Segoe UI", 8), 
                           fg="#a0aec0", bg="#18202a")
         lbl_m2.pack(anchor="w")
         self.meter_out = ttk.Progressbar(meter_frame, orient="horizontal", mode="determinate")
-        self.meter_out.pack(fill="x", pady=(2, 0))
+        self.meter_out.pack(fill="x", pady=(1, 0))
 
-        # Connect / Disconnect Big Button
-        self.btn_toggle = tk.Button(main_frame, text="🚀 Connect & Start AI Voice", 
-                                    font=("Segoe UI", 11, "bold"), bg="#e1306c", fg="#ffffff", 
-                                    activebackground="#c1275d", activeforeground="#ffffff", 
+        # Continuous Live Call Toggle Button
+        self.btn_toggle = tk.Button(main_frame, text="⚡ Start Live Voice Stream", 
+                                    font=("Segoe UI", 11, "bold"), bg="#3182ce", fg="#ffffff", 
+                                    activebackground="#2b6cb0", activeforeground="#ffffff", 
                                     relief="flat", cursor="hand2", command=self.toggle_stream)
-        self.btn_toggle.pack(fill="x", ipady=8, pady=(0, 8))
+        self.btn_toggle.pack(fill="x", ipady=8, pady=(0, 6))
 
         # Status & Ping Footer
         footer_frame = tk.Frame(main_frame, bg="#12161c")
@@ -277,7 +295,7 @@ class BanglaAIVoiceClient:
         self.lbl_status = tk.Label(footer_frame, text="Status: Ready", font=("Segoe UI", 9), 
                                    fg="#718096", bg="#12161c")
         self.lbl_status.pack(side="left")
-        self.lbl_ping = tk.Label(footer_frame, text="Latency: -- ms", font=("Segoe UI", 9, "bold"), 
+        self.lbl_ping = tk.Label(footer_frame, text="Latency: < 5 ms", font=("Segoe UI", 9, "bold"), 
                                  fg="#718096", bg="#12161c")
         self.lbl_ping.pack(side="right")
 
@@ -287,12 +305,14 @@ class BanglaAIVoiceClient:
     def on_mode_change(self):
         if self.mode_var.get() == "local":
             self.url_frame.pack_forget()
-            self.btn_toggle.config(text="⚡ Start Local Female Voice (Instant)", bg="#3182ce")
+            self.btn_toggle.config(text="⚡ Start Live Voice Stream", bg="#3182ce")
             self.lbl_status.config(text="Status: Ready (Local Offline Engine)", fg="#63b3ed")
+            self.lbl_ping.config(text="Latency: < 5 ms")
         else:
-            self.url_frame.pack(fill="x", pady=(0, 10), before=self.cbo_preset.master)
+            self.url_frame.pack(fill="x", pady=(0, 8), before=self.scale_gain.master)
             self.btn_toggle.config(text="🚀 Connect & Start AI Voice", bg="#e1306c")
             self.lbl_status.config(text="Status: Ready to connect to Colab", fg="#718096")
+            self.lbl_ping.config(text="Latency: -- ms")
 
     def on_preset_change(self, event=None):
         name = self.cbo_preset.get()
@@ -323,18 +343,26 @@ class BanglaAIVoiceClient:
         self.cbo_monitor['values'] = output_list
 
         # Smart preselection:
-        # 1. Microphone: USB or default
+        # 1. Microphone: Prefer Realtek Array (active on laptops) or working mic
         if input_list:
             selected_in = input_list[0]
+            # Prioritize Realtek if present because USB dongle is silent
             for item in input_list:
-                if "usb" in item.lower() and "microphone" in item.lower():
+                if "realtek" in item.lower() and "microphone" in item.lower():
                     selected_in = item
                     break
-                elif "microphone" in item.lower():
-                    selected_in = item
             self.cbo_input.set(selected_in)
 
-        # 2. Main Call Output: VB-Audio Cable Input
+        # 2. Monitor Output (Headphones / Speakers) -> Realtek or USB
+        if output_list:
+            selected_mon = output_list[0]
+            for item in output_list:
+                if "realtek" in item.lower() and "speaker" in item.lower():
+                    selected_mon = item
+                    break
+            self.cbo_monitor.set(selected_mon)
+
+        # 3. Main Call Output -> VB-Audio Cable Input
         if output_list:
             selected_out = output_list[0]
             for item in output_list:
@@ -343,17 +371,70 @@ class BanglaAIVoiceClient:
                     break
             self.cbo_output.set(selected_out)
 
-        # 3. Monitor: Physical Speakers / USB Headphones
-        if output_list:
-            selected_mon = output_list[0]
-            for item in output_list:
-                if "usb" in item.lower() and "speaker" in item.lower():
-                    selected_mon = item
-                    break
-                elif "speaker" in item.lower() and "cable" not in item.lower():
-                    selected_mon = item
-            self.cbo_monitor.set(selected_mon)
+    # ------------------ 1-CLICK SELF TEST LOGIC ------------------
+    def start_self_test(self):
+        if self.is_testing or self.is_running:
+            return
 
+        in_choice = self.cbo_input.get()
+        mon_choice = self.cbo_monitor.get()
+
+        if not in_choice or not mon_choice:
+            messagebox.showerror("Select Devices", "Please select your Microphone and Speakers.")
+            return
+
+        in_id = self.input_indices[in_choice]
+        mon_id = self.output_indices[mon_choice]
+
+        self.is_testing = True
+        self.btn_self_test.config(state="disabled", text="⏳ Preparing Test...", bg="#4a5568")
+        threading.Thread(target=self._run_self_test_worker, args=(in_id, mon_id), daemon=True).start()
+
+    def _run_self_test_worker(self, in_id, mon_id):
+        gain = float(self.scale_gain.get())
+        self.on_preset_change()
+
+        try:
+            # Step 1: Countdown
+            for sec in range(2, 0, -1):
+                self.root.after(0, self.lbl_test_hint.config, {"text": f"🎙️ Get ready... Speak in {sec} second(s)!", "fg": "#ecc94b"})
+                time.sleep(1)
+
+            # Step 2: Record
+            self.root.after(0, self.lbl_test_hint.config, {"text": "🔴 RECORDING NOW! Say: 'হ্যালো, কেমন আছেন?'", "fg": "#f56565"})
+            rec_duration = 3.5
+            total_samples = int(SAMPLE_RATE * rec_duration)
+            
+            raw_audio = sd.rec(total_samples, samplerate=SAMPLE_RATE, channels=1, device=in_id, dtype='float32')
+            sd.wait()
+
+            audio_data = raw_audio[:, 0] * gain
+            peak = float(np.max(np.abs(audio_data)))
+
+            if peak < 0.005:
+                self.root.after(0, self.lbl_test_hint.config, {
+                    "text": "⚠️ Almost no sound detected! Check mic volume or switch to 'Microphone Array (Realtek)'", 
+                    "fg": "#e53e3e"
+                })
+            else:
+                # Step 3: Process through Local Female Voice Engine
+                self.root.after(0, self.lbl_test_hint.config, {"text": "⚡ Converting into AI Female Voice...", "fg": "#63b3ed"})
+                converted = self.local_engine.process(audio_data)
+
+                # Step 4: Playback
+                self.root.after(0, self.lbl_test_hint.config, {"text": "🔊 PLAYING BACK! Listen to your female voice now!", "fg": "#48bb78"})
+                sd.play(converted, samplerate=SAMPLE_RATE, device=mon_id)
+                sd.wait()
+
+                self.root.after(0, self.lbl_test_hint.config, {"text": "🎉 Playback complete! You can click test again anytime.", "fg": "#48bb78"})
+
+        except Exception as e:
+            self.root.after(0, self.lbl_test_hint.config, {"text": f"Error during test: {e}", "fg": "#f56565"})
+        finally:
+            self.is_testing = False
+            self.root.after(0, self.btn_self_test.config, {"state": "normal", "text": "🔴 1-Click Self Test (Record 3s & Hear Female Voice)", "bg": "#805ad5"})
+
+    # ------------------ Continuous Stream Logic ------------------
     def toggle_stream(self):
         if not self.is_running:
             mode = self.mode_var.get()
@@ -370,7 +451,6 @@ class BanglaAIVoiceClient:
             self.mon_device_id = self.output_indices.get(mon_choice, None)
             self.use_monitor = self.monitor_var.get() and (self.mon_device_id is not None)
 
-            # Check preset
             self.on_preset_change()
 
             if mode == "cloud":
@@ -386,21 +466,18 @@ class BanglaAIVoiceClient:
                 self.worker_thread.start()
             else:
                 self.is_running = True
-                self.btn_toggle.config(text="🛑 Stop Local Voice Stream", bg="#e53e3e")
+                self.btn_toggle.config(text="🛑 Stop Live Voice Stream", bg="#e53e3e")
                 self.lbl_status.config(text="Status: 🟢 Running (Local Voice Engine)", fg="#48bb78")
-                self.lbl_ping.config(text="Latency: < 5 ms", fg="#48bb78")
                 self.worker_thread = threading.Thread(target=self.run_local_stream, daemon=True)
                 self.worker_thread.start()
         else:
             self.is_running = False
-            self.btn_toggle.config(text="🚀 Connect & Start AI Voice" if self.mode_var.get() == "cloud" else "⚡ Start Local Female Voice (Instant)", 
-                                   bg="#e1306c" if self.mode_var.get() == "cloud" else "#3182ce")
+            self.btn_toggle.config(text="⚡ Start Live Voice Stream" if self.mode_var.get() == "local" else "🚀 Connect & Start AI Voice", 
+                                   bg="#3182ce" if self.mode_var.get() == "local" else "#e1306c")
             self.lbl_status.config(text="Status: Stopped", fg="#718096")
-            self.lbl_ping.config(text="Latency: -- ms")
             self.meter_in["value"] = 0
             self.meter_out["value"] = 0
 
-    # ------------------ Local Engine Thread ------------------
     def run_local_stream(self):
         gain = float(self.scale_gain.get())
 
@@ -409,9 +486,7 @@ class BanglaAIVoiceClient:
             rms_in = np.sqrt(np.mean(chunk**2))
             self.root.after(0, self.update_in_meter, min(100, int(rms_in * 350)))
 
-            # Process through local female pitch/formant engine
             converted = self.local_engine.process(chunk)
-
             rms_out = np.sqrt(np.mean(converted**2))
             self.root.after(0, self.update_out_meter, min(100, int(rms_out * 350)))
 
@@ -461,9 +536,8 @@ class BanglaAIVoiceClient:
             self.root.after(0, self.lbl_status.config, {"text": f"Error: {e}", "fg": "#f56565"})
         finally:
             self.is_running = False
-            self.root.after(0, self.btn_toggle.config, {"text": "⚡ Start Local Female Voice (Instant)", "bg": "#3182ce"})
+            self.root.after(0, self.btn_toggle.config, {"text": "⚡ Start Live Voice Stream", "bg": "#3182ce"})
 
-    # ------------------ Cloud Colab GPU Async Thread ------------------
     def run_cloud_async(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -511,10 +585,6 @@ class BanglaAIVoiceClient:
                 if self.use_monitor and self.mon_device_id != self.out_device_id:
                     mon_stream = sd.OutputStream(device=self.mon_device_id, channels=1, samplerate=SAMPLE_RATE,
                                                  blocksize=BLOCK_SIZE, callback=mon_callback)
-
-                streams = [in_stream, out_stream]
-                if mon_stream:
-                    streams.append(mon_stream)
 
                 with in_stream, out_stream:
                     if mon_stream:
